@@ -1,0 +1,7 @@
+{
+  "name": "test agent",
+  "description": "d",
+  "services": [{ "type": "http", "url": "https://example.com" }],
+  "supportedTrust": ["reputation"],
+  "active": true
+}
