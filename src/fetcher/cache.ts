@@ -18,7 +18,7 @@ let dbInstancePath: string | null = null;
 function defaultCachePath(): string {
   const dir = process.env["CACHE_DIR"];
   const resolvedDir =
-    dir && dir.length > 0 ? dir : path.join(os.homedir(), ".cache", "mcp-8004-bridge");
+    dir && dir.length > 0 ? dir : path.join(os.homedir(), ".cache", "web3-agents-mcp");
   return path.join(resolvedDir, "cache.sqlite");
 }
 
