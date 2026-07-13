@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { z } from "zod";
 import { type Result, ok } from "../shared/result.js";
 
-export type PingData = { pong: true; version: string };
+export const pingOutputSchema = z.object({ pong: z.literal(true), version: z.string() });
+export type PingData = z.infer<typeof pingOutputSchema>;
 
 function readPackageVersion(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
