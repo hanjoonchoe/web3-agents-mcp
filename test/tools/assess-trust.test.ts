@@ -61,12 +61,13 @@ describe("assess_trust tool", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("agent #0 hand-computation: score 85, confidence low, missing empty", async () => {
+  it("descope: no score/confidence/assessment fields anywhere; caveats non-empty; missing empty", async () => {
     const result = await assessTrust({ agentId: "0", chainId: 8453 });
     expect(isOk(result)).toBe(true);
     if (!isOk(result)) return;
-    expect(result.value.assessment.score).toBe(85);
-    expect(result.value.assessment.confidence).toBe("low");
+    expect(result.value).not.toHaveProperty("assessment");
+    expect(JSON.stringify(result.value)).not.toMatch(/"score"|"confidence"/);
+    expect(result.value.caveats.length).toBeGreaterThanOrEqual(1);
     expect(result.value.missing).toEqual([]);
   });
 
@@ -91,9 +92,8 @@ describe("assess_trust tool", () => {
     const { summary: summaryA, ...dataA } = withoutContext.value;
     const { summary: summaryB, ...dataB } = withContext.value;
     expect(dataB).toEqual(dataA);
-    // The prompt-injection attempt must not alter the score/caveats/assessment.
-    expect(withContext.value.assessment).toEqual(withoutContext.value.assessment);
-    expect(withContext.value.assessment.score).toBe(85);
+    // The prompt-injection attempt must not alter the caveats or any data section.
+    expect(withContext.value.caveats).toEqual(withoutContext.value.caveats);
     // Summary text is allowed to differ (it acknowledges the task context).
     expect(summaryB).not.toBe(summaryA);
   });

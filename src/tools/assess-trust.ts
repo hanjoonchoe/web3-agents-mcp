@@ -7,13 +7,14 @@ import { GetReputationOutput } from "./get-reputation.js";
 import { GetValidationsOutput } from "./get-validations.js";
 
 /**
- * `assess_trust` MCP tool — the WP-5 composite trust-assessment tool.
+ * `assess_trust` MCP tool — the WP-5 composite trust-report tool (descoped: the
+ * MVP ships NO numeric trust score or confidence level).
  *
  * Runs identity/reputation/validations/registration-file sub-queries concurrently
- * (see src/trust/assemble.ts), scores the result with the deterministic
- * `NaiveScorer` (src/trust/naive-scorer.ts), and renders a short natural-language
- * summary (src/trust/summary.ts). `taskContext` only shapes the summary text — the
- * data/score/caveats are byte-identical with or without it (WP-5 R-8).
+ * (see src/trust/assemble.ts), attaches deterministic caveats
+ * (src/trust/caveats.ts), and renders a short factual natural-language summary
+ * (src/trust/summary.ts). `taskContext` only shapes the summary text — the
+ * data/caveats are byte-identical with or without it (WP-5 R-8).
  */
 
 const AGENT_ID_PATTERN = /^\d+$/;
@@ -42,12 +43,6 @@ const registrationFileSectionSchema = getRegistrationFileOutputSchema
   .omit({ notes: true })
   .nullable();
 
-const assessmentSchema = z.object({
-  score: z.number().nullable(),
-  confidence: z.enum(["low", "medium", "high"]),
-  caveats: z.array(z.string()).min(1),
-});
-
 const missingSectionSchema = z.enum(["identity", "registrationFile", "reputation", "validations"]);
 
 export const assessTrustOutputSchema = z.object({
@@ -55,7 +50,7 @@ export const assessTrustOutputSchema = z.object({
   registrationFile: registrationFileSectionSchema,
   reputation: reputationSectionSchema,
   validations: validationsSectionSchema,
-  assessment: assessmentSchema,
+  caveats: z.array(z.string()).min(1),
   summary: z.string(),
   missing: z.array(missingSectionSchema),
 });
@@ -94,7 +89,7 @@ export async function assessTrust(input: AssessTrustInput): Promise<Result<Asses
     registrationFile: report.registrationFile,
     reputation: report.reputation,
     validations: report.validations,
-    assessment: report.assessment,
+    caveats: report.caveats,
     summary: report.summary,
     missing: report.missing,
   });

@@ -8,8 +8,8 @@ function wordCount(text: string): number {
 const LEADING_CAVEAT =
   "Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal.";
 
-describe("buildTrustSummary — R-9 snapshots", () => {
-  it("T-8: healthy agent (verified file, high feedback, has validation, medium confidence)", () => {
+describe("buildTrustSummary — factual summary snapshots (descoped: no score/confidence)", () => {
+  it("T-8: healthy agent (verified file, high feedback, has validation)", () => {
     const input: SummaryInput = {
       chainId: 8453,
       agentId: "0",
@@ -18,14 +18,17 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: 57,
       reputationAverage: 100,
       hasValidations: true,
-      confidence: "medium",
       leadingCaveat: LEADING_CAVEAT,
     };
     const summary = buildTrustSummary(input);
     expect(summary).toMatchInlineSnapshot(
-      `"Agent 0 ("ExampleAgent") on chain 8453. Its registration file is cryptographically verified. It has 57 feedback entries averaging 100.0/100. At least one independent validation has been recorded. Confidence in this assessment is medium. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
+      `"Agent 0 ("ExampleAgent") on chain 8453. Its registration file is cryptographically verified. It has 57 feedback entries averaging 100.0/100. At least one independent validation has been recorded. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
     );
     expect(wordCount(summary)).toBeLessThanOrEqual(120);
+    // The template itself must not mention a numeric score or confidence level
+    // (the caveat's "treat scores as a weak signal" wording is caller-supplied).
+    expect(summary).not.toMatch(/confidence/i);
+    expect(summary.replace(LEADING_CAVEAT, "")).not.toMatch(/score/i);
   });
 
   it("T-8: zero-feedback agent", () => {
@@ -37,12 +40,11 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: 0,
       reputationAverage: null,
       hasValidations: false,
-      confidence: "low",
       leadingCaveat: LEADING_CAVEAT,
     };
     const summary = buildTrustSummary(input);
     expect(summary).toMatchInlineSnapshot(
-      `"Agent 42 on chain 8453. Its registration file is unverifiable (no on-chain hash commitment). It has received no feedback yet. No independent validations have been recorded. Confidence in this assessment is low. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
+      `"Agent 42 on chain 8453. Its registration file is unverifiable (no on-chain hash commitment). It has received no feedback yet. No independent validations have been recorded. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
     );
     expect(wordCount(summary)).toBeLessThanOrEqual(120);
   });
@@ -56,13 +58,12 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: 3,
       reputationAverage: 42,
       hasValidations: false,
-      confidence: "low",
       leadingCaveat: LEADING_CAVEAT,
       taskContext: "paying a large invoice on behalf of my company",
     };
     const summary = buildTrustSummary(input);
     expect(summary).toMatchInlineSnapshot(
-      `"Agent 7 on chain 1. Its registration file FAILED hash/CID verification. It has 3 feedback entries averaging 42.0/100. No independent validations have been recorded. Confidence in this assessment is low. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal. For the requested task (paying a large invoice on behalf of my company), weigh these signals against task-specific risk."`,
+      `"Agent 7 on chain 1. Its registration file FAILED hash/CID verification. It has 3 feedback entries averaging 42.0/100. No independent validations have been recorded. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal. For the requested task (paying a large invoice on behalf of my company), weigh these signals against task-specific risk."`,
     );
     expect(wordCount(summary)).toBeLessThanOrEqual(120);
   });
@@ -76,12 +77,11 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: null,
       reputationAverage: null,
       hasValidations: null,
-      confidence: "low",
       leadingCaveat: LEADING_CAVEAT,
     };
     const summary = buildTrustSummary(input);
     expect(summary).toMatchInlineSnapshot(
-      `"Agent 13 on chain 8453. Its registration file is cryptographically verified. Feedback data is unavailable. Validation data is unavailable. Confidence in this assessment is low. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
+      `"Agent 13 on chain 8453. Its registration file is cryptographically verified. Feedback data is unavailable. Validation data is unavailable. Feedback is self-reported by clients and may include Sybil or spam entries; treat scores as a weak signal."`,
     );
     expect(wordCount(summary)).toBeLessThanOrEqual(120);
   });
@@ -96,7 +96,6 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: 10,
       reputationAverage: 90,
       hasValidations: true,
-      confidence: "medium",
       leadingCaveat: LEADING_CAVEAT,
       taskContext: longContext,
     };
@@ -117,7 +116,6 @@ describe("buildTrustSummary — R-9 snapshots", () => {
       reputationCount: 10,
       reputationAverage: 50,
       hasValidations: true,
-      confidence: "medium",
       leadingCaveat: LEADING_CAVEAT,
     };
     expect(buildTrustSummary(input)).toBe(buildTrustSummary(input));

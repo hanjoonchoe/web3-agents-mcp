@@ -3,6 +3,7 @@ import type { Address } from "viem";
 import { bridgeError } from "../../src/shared/errors.js";
 import { err, isOk, ok } from "../../src/shared/result.js";
 import { assembleTrustReport, type AssembleDeps } from "../../src/trust/assemble.js";
+import { SYBIL_CAVEAT, missingCaveat } from "../../src/trust/caveats.js";
 import type { AgentRecord } from "../../src/registry/identity.js";
 import type { FeedbackSummary } from "../../src/registry/reputation.js";
 import type { ValidationsPage } from "../../src/registry/validation.js";
@@ -41,7 +42,7 @@ function makeDeps(overrides: Partial<AssembleDeps> = {}): AssembleDeps {
 }
 
 describe("assembleTrustReport — R-1/R-2 happy path", () => {
-  it("full success: all sections populated, missing empty, score matches hand-computation", async () => {
+  it("full success: all sections populated, missing empty, caveats non-empty, no score fields", async () => {
     const deps = makeDeps();
     const result = await assembleTrustReport(8453, 1n, { deps });
     expect(isOk(result)).toBe(true);
@@ -52,9 +53,11 @@ describe("assembleTrustReport — R-1/R-2 happy path", () => {
     expect(report.registrationFile).not.toBeNull();
     expect(report.reputation).not.toBeNull();
     expect(report.validations).not.toBeNull();
-    // 30 base + 20 verified + 20 volume cap + 15 avg + 0 validation = 85
-    expect(report.assessment.score).toBe(85);
-    expect(report.assessment.confidence).toBe("low"); // 0 validations
+    expect(report.caveats.length).toBeGreaterThanOrEqual(1);
+    expect(report.caveats).toContain(SYBIL_CAVEAT);
+    // Descope: no numeric scoring anywhere on the report.
+    expect(report).not.toHaveProperty("assessment");
+    expect(JSON.stringify(report)).not.toMatch(/"score"|"confidence"/);
   });
 });
 
@@ -69,7 +72,7 @@ describe("assembleTrustReport — R-2 identity failure semantics", () => {
     expect(result.error.code).toBe("AGENT_NOT_FOUND");
   });
 
-  it("T-2: non-AGENT_NOT_FOUND identity failure (e.g. RPC_ERROR) -> report with identity+registrationFile missing, score null", async () => {
+  it("T-2: non-AGENT_NOT_FOUND identity failure (e.g. RPC_ERROR) -> report with identity+registrationFile missing", async () => {
     const deps = makeDeps({
       getAgent: vi.fn(async () => err(bridgeError("RPC_ERROR", "rpc down"))),
     });
@@ -81,7 +84,8 @@ describe("assembleTrustReport — R-2 identity failure semantics", () => {
     expect(report.registrationFile).toBeNull();
     expect(report.missing).toContain("identity");
     expect(report.missing).toContain("registrationFile");
-    expect(report.assessment.score).toBeNull();
+    expect(report.caveats).toContain(missingCaveat("identity"));
+    expect(report.caveats).toContain(missingCaveat("registrationFile"));
   });
 });
 
@@ -97,6 +101,7 @@ describe("assembleTrustReport — T-3 exactly one of reputation/validations fail
     expect(report.reputation).toBeNull();
     expect(report.validations).not.toBeNull();
     expect(report.missing).toEqual(["reputation"]);
+    expect(report.caveats).toContain(missingCaveat("reputation"));
   });
 
   it("validations fail, reputation succeeds -> reputation populated, validations missing, ok:true", async () => {
@@ -110,6 +115,7 @@ describe("assembleTrustReport — T-3 exactly one of reputation/validations fail
     expect(report.validations).toBeNull();
     expect(report.reputation).not.toBeNull();
     expect(report.missing).toEqual(["validations"]);
+    expect(report.caveats).toContain(missingCaveat("validations"));
   });
 });
 

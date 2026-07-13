@@ -9,13 +9,18 @@ import {
 } from "../registry/validation.js";
 import { bridgeError, type BridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
-import { deriveMissingSections, type MissingSection } from "./naive-scorer.js";
-import { NaiveScorer } from "./naive-scorer.js";
-import type { Scorer, ScorerInput } from "./scorer.js";
+import {
+  buildCaveats,
+  deriveMissingSections,
+  type MissingSection,
+  type TrustSections,
+} from "./caveats.js";
 import { buildTrustSummary } from "./summary.js";
 
 /**
- * Orchestration for the `assess_trust` composite tool (WP-5 R-1/R-2/R-3).
+ * Orchestration for the `assess_trust` composite tool (WP-5, descoped — the MVP
+ * ships NO numeric trust score; the report carries raw sections, deterministic
+ * caveats, and a factual summary).
  *
  * Runs identity, reputation (getSummary), and validations concurrently
  * (Promise.allSettled semantics — no sub-query failure ever throws out of this
@@ -62,18 +67,12 @@ export type ValidationsSection = {
   pagination: { limit: number; offset: number };
 };
 
-export type TrustAssessment = {
-  score: number | null;
-  confidence: "low" | "medium" | "high";
-  caveats: string[];
-};
-
 export type TrustReport = {
   identity: IdentitySection | null;
   registrationFile: RegistrationFileSection | null;
   reputation: ReputationSection | null;
   validations: ValidationsSection | null;
-  assessment: TrustAssessment;
+  caveats: string[];
   summary: string;
   missing: MissingSection[];
 };
@@ -92,7 +91,6 @@ export type AssembleDeps = {
 export type AssembleOptions = {
   /** Wall-clock budget in ms for the whole assembly. Default 15000 (R-3). */
   timeoutMs?: number;
-  scorer?: Scorer;
   taskContext?: string;
   validationPage?: PageOptions;
   deps?: Partial<AssembleDeps>;
@@ -197,7 +195,6 @@ export async function assembleTrustReport(
     ...opts.deps,
   };
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const scorer = opts.scorer ?? new NaiveScorer();
   const validationPage = opts.validationPage ?? DEFAULT_VALIDATION_PAGE;
 
   const deadline = createDeadline(timeoutMs);
@@ -248,7 +245,7 @@ export async function assembleTrustReport(
         ? validationsOutcome.value.value
         : null;
 
-    const scorerInput: ScorerInput = {
+    const sections: TrustSections = {
       identity: identity
         ? {
             agentId: identity.agentId,
@@ -261,16 +258,11 @@ export async function assembleTrustReport(
       reputation: reputation
         ? { count: reputation.count, averageScore: reputation.averageScore }
         : null,
-      validations: validations
-        ? {
-            entries: validations.entries.map((e) => ({ method: e.method })),
-            total: validations.total,
-          }
-        : null,
+      validations: validations ? { total: validations.total } : null,
     };
 
-    const assessment = scorer.score(scorerInput);
-    const missing = deriveMissingSections(scorerInput);
+    const missing = deriveMissingSections(sections);
+    const caveats = buildCaveats(sections, missing);
 
     const summary = buildTrustSummary({
       chainId,
@@ -280,8 +272,7 @@ export async function assembleTrustReport(
       reputationCount: reputation ? Number(reputation.count) : null,
       reputationAverage: reputation ? reputation.averageScore : null,
       hasValidations: validations ? validations.total >= 1 : null,
-      confidence: assessment.confidence,
-      leadingCaveat: assessment.caveats[0] ?? "",
+      leadingCaveat: caveats[0] ?? "",
       taskContext: opts.taskContext,
     });
 
@@ -290,7 +281,7 @@ export async function assembleTrustReport(
       registrationFile: file ? toRegistrationFileSection(file) : null,
       reputation: reputation ? toReputationSection(reputation) : null,
       validations: validations ? toValidationsSection(validations, validationPage) : null,
-      assessment,
+      caveats,
       summary,
       missing,
     };

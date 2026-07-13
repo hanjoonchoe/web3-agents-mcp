@@ -1,7 +1,6 @@
-import type { Confidence } from "./scorer.js";
-
 /**
- * Pure, deterministic natural-language summary template for `assess_trust` (WP-5 R-9).
+ * Pure, deterministic natural-language summary template for `assess_trust` (WP-5,
+ * descoped — the MVP ships no numeric score, so the summary is purely factual).
  * No LLM calls, no I/O, no randomness — same input always yields the same string.
  * Output is capped at 120 words (asserted in tests, not enforced here beyond the
  * template's own brevity).
@@ -12,14 +11,13 @@ export type SummaryInput = {
   agentId: string;
   /** Best-effort agent name parsed from the registration file's `name` field, if any. */
   agentName: string | null;
-  /** null when the registration-file section is missing (fetch failed/timed out). */
+  /** "unavailable" when the registration-file section is missing (fetch failed/timed out). */
   fileVerified: boolean | null | "unavailable";
   /** null when the reputation section is missing. */
   reputationCount: number | null;
   reputationAverage: number | null;
   /** null when the validations section is missing. */
   hasValidations: boolean | null;
-  confidence: Confidence;
   leadingCaveat: string;
   /** Raw, untruncated taskContext (truncated internally to 80 chars). */
   taskContext?: string | undefined;
@@ -78,7 +76,6 @@ export function buildTrustSummary(input: SummaryInput): string {
     fileClause(input.fileVerified),
     reputationClause(input.reputationCount, input.reputationAverage),
     validationClause(input.hasValidations),
-    `Confidence in this assessment is ${input.confidence}.`,
     input.leadingCaveat,
   ];
 

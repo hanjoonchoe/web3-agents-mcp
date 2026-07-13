@@ -113,11 +113,11 @@ export function registerTools(server: McpServer): void {
     "assess_trust",
     {
       description:
-        "Composite trust assessment for an ERC-8004 agent: runs identity, registration " +
+        "Factual trust report for an ERC-8004 agent: runs identity, registration " +
         "file, reputation, and validation lookups in parallel with graceful partial " +
-        "failure, then produces a deterministic 0-100 NaiveScorer score, a confidence " +
-        "level (capped at 'medium' in v0), documented caveats, and a short natural-" +
-        "language summary. `taskContext` only shapes the summary text.",
+        "failure, and returns the raw sections plus deterministic honesty caveats " +
+        "and a short factual natural-language summary. No numeric scoring. " +
+        "`taskContext` only shapes the summary text.",
       inputSchema: assessTrustInputShape,
     },
     async (input) => toCallToolResult(await assessTrust(input)),
