@@ -73,21 +73,44 @@ checkout) as a child process and speak MCP over its stdin/stdout.
 
 ## Tool reference
 
-Seven tools: `ping`, `resolve_agent`, `get_registration_file`, `get_reputation`,
-`get_validations`, `assess_trust`, `search_agents`. Full input/output schemas, defaults, and
-possible error codes for each are generated from source into
+Eight tools: `ping`, `resolve_agent`, `get_registration_file`, `get_reputation`,
+`get_validations`, `assess_trust`, `search_agents`, `list_chains`. Full input/output schemas,
+defaults, and possible error codes for each are generated from source into
 [`docs/tools.md`](docs/tools.md) — regenerate it with `pnpm docs:gen` after changing a tool's
 zod schema or description. A real captured call-by-call transcript is in
 [`docs/demo.md`](docs/demo.md).
 
+Every tool that reads on-chain state takes an optional `chain` argument — the chain's canonical
+name (e.g. `"base"`, `"ethereum"`), not a numeric id — defaulting to `DEFAULT_CHAIN_ID` if
+omitted. `chain` is a fixed enum of whatever this server is currently configured for; call
+`list_chains` to discover the live list (and each chain's numeric `chainId`) rather than
+hardcoding names.
+
+## Supported chains
+
+| Chain            | `chain` value | chainId | Supported |
+| ---------------- | ------------- | ------- | --------- |
+| Ethereum Mainnet | `ethereum`    | 1       | ✅        |
+| Base Mainnet     | `base`        | 8453    | ✅        |
+| Polygon PoS      | `polygon`     | 137     | ✅        |
+| Arbitrum One     | `arbitrum`    | 42161   | ✅        |
+| OP Mainnet       | `optimism`    | 10      | ✅        |
+| BNB Smart Chain  | `bnb`         | 56      | ✅        |
+| Gnosis Chain     | `gnosis`      | 100     | ✅        |
+
+Registry addresses are identical on every chain above (deployed via the same CREATE2 vanity
+salt); more chains can be added in `src/chains/config.ts`. Agents can discover this list live
+(and check which chain is the current default) via the `list_chains` tool rather than assuming
+it is fixed to the table above.
+
 ## Configuration
 
-All configuration is via environment variables; every tool call still takes an explicit
-`chainId` argument, so these are defaults, not global switches.
+All configuration is via environment variables; every tool call still takes an explicit `chain`
+argument, so these are defaults, not global switches.
 
 | Variable            | Default                                                                    | Purpose                                                                                                                                                           |
 | ------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_CHAIN_ID`  | `8453` (Base)                                                              | Chain id used by any tool call that omits `chainId`.                                                                                                              |
+| `DEFAULT_CHAIN_ID`  | `8453` (Base)                                                              | Numeric chain id used by any tool call that omits `chain`.                                                                                                        |
 | `RPC_URL_<chainId>` | none (built-in public RPC list per chain)                                  | Overrides/prepends the RPC endpoint used for that specific chain id, e.g. `RPC_URL_8453`.                                                                         |
 | `CACHE_DIR`         | `~/.cache/web3-agents-mcp`                                                 | Directory for the local sqlite cache of fetched registration files.                                                                                               |
 | `IPFS_GATEWAYS`     | `https://ipfs.io,https://cloudflare-ipfs.com,https://gateway.pinata.cloud` | Comma-separated list of IPFS HTTP gateways to try, in order, for `ipfs://` registration files.                                                                    |

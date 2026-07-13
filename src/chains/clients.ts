@@ -1,5 +1,5 @@
 import { createPublicClient, fallback, http, type Chain, type PublicClient } from "viem";
-import { base, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, gnosis, mainnet, optimism, polygon } from "viem/chains";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, ok } from "../shared/result.js";
 import { getChainConfig } from "./config.js";
@@ -7,6 +7,11 @@ import { getChainConfig } from "./config.js";
 const VIEM_CHAINS: Record<number, Chain> = {
   1: mainnet,
   8453: base,
+  137: polygon,
+  42161: arbitrum,
+  10: optimism,
+  56: bsc,
+  100: gnosis,
 };
 
 // Lazy per-chain client pool: a chain's client (and its fallback transport) is built

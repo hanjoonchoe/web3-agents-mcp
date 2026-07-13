@@ -29,14 +29,14 @@ Resolves an ERC-8004 agent by agentId or ownerAddress (exactly one selector), re
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `agentId` | `string` | no | — |
 | `ownerAddress` | `string` | no | — |
 
 **Output (sketch)**
 
 ```
-{ chainId: number; agentId: string | null; owner: string | null; tokenUri: string | null; registrationFileUrl: string | null; endpoints: string[] | null; capabilities: string[] | null; registeredAt: string | null; candidates: string[] }
+{ chain: string; chainId: number; agentId: string | null; owner: string | null; tokenUri: string | null; registrationFileUrl: string | null; endpoints: string[] | null; capabilities: string[] | null; registeredAt: string | null; candidates: string[] }
 ```
 
 **Possible error codes**
@@ -54,7 +54,7 @@ Fetches and verifies an agent's registration file (via its tokenUri): ipfs:// CI
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `agentId` | `string` | yes | — |
 | `requireVerified` | `boolean` | no | — |
 
@@ -81,7 +81,7 @@ Reads an agent's Reputation Registry feedback summary (and optionally the raw fe
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `agentId` | `string` | yes | — |
 | `includeRaw` | `boolean` | no | false |
 | `limit` | `number` | no | 50 |
@@ -108,7 +108,7 @@ Reads an agent's Validation Registry entries (validator, best-effort method clas
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `agentId` | `string` | yes | — |
 | `limit` | `number` | no | 50 |
 | `offset` | `number` | no | 0 |
@@ -134,7 +134,7 @@ Factual trust report for an ERC-8004 agent: runs identity, registration file, re
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `agentId` | `string` | yes | — |
 | `taskContext` | `string` | no | — |
 
@@ -159,7 +159,7 @@ Searches for ERC-8004 agents by name/capability/description. MVP stub: no local 
 
 | Field | Type | Required | Default |
 | --- | --- | --- | --- |
-| `chainId` | `number` | no | — |
+| `chain` | `"ethereum" | "optimism" | "bnb" | "gnosis" | "polygon" | "base" | "arbitrum"` | no | — |
 | `query` | `string` | yes | — |
 | `limit` | `number` | no | 20 |
 
@@ -173,3 +173,21 @@ Searches for ERC-8004 agents by name/capability/description. MVP stub: no local 
 
 - `INVALID_INPUT`
 - `INDEX_UNAVAILABLE`
+
+## `list_chains`
+
+Lists the chains this server is configured for. Every other tool's `chain` argument must be one of the `chain` slugs returned here; `isDefault` marks the chain used when a tool call omits `chain` (DEFAULT_CHAIN_ID env resolution).
+
+**Input**
+
+_No input fields._
+
+**Output (sketch)**
+
+```
+{ chains: object[]; defaultChainId: number }
+```
+
+**Possible error codes**
+
+_Never returns an error envelope._

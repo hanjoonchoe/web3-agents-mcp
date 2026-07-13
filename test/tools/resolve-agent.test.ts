@@ -66,7 +66,7 @@ describe("resolve_agent", () => {
       }),
     );
 
-    const result = await resolveAgent({ agentId: "1", chainId: 8453 });
+    const result = await resolveAgent({ agentId: "1", chain: "base" });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
       expect(result.value.agentId).toBe("1");
@@ -91,7 +91,7 @@ describe("resolve_agent", () => {
       err(bridgeError("FILE_UNREACHABLE", "boom", { retryable: true })),
     );
 
-    const result = await resolveAgent({ agentId: "2", chainId: 8453 });
+    const result = await resolveAgent({ agentId: "2", chain: "base" });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
       expect(result.value.agentId).toBe("2");
@@ -104,7 +104,7 @@ describe("resolve_agent", () => {
 
   it("agentId path propagates AGENT_NOT_FOUND from the registry", async () => {
     getAgentMock.mockResolvedValue(err(bridgeError("AGENT_NOT_FOUND", "no such agent")));
-    const result = await resolveAgent({ agentId: "999", chainId: 8453 });
+    const result = await resolveAgent({ agentId: "999", chain: "base" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("AGENT_NOT_FOUND");

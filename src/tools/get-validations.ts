@@ -1,14 +1,18 @@
 import { z } from "zod";
 import { getValidations as readValidations } from "../registry/validation.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
 
 /**
- * `get_validations` MCP tool. Imports only `registry`/`shared` (never `viem` directly),
- * per WP-4 R-8.
+ * `get_validations` MCP tool. Imports only `registry`/`shared`/the shared chain
+ * schema/slug lookup (never `viem` directly), per WP-4 R-8.
  *
  * chainId default: `DEFAULT_CHAIN_ID` env var if set and a valid integer, else `8453`
- * (Base) — see WP-4 R-7.
+ * (Base) — see WP-4 R-7. Chain support is enforced at the MCP schema layer (enum of
+ * configured chain slugs) and, as defense-in-depth, downstream at runtime for direct
+ * (non-MCP) callers.
  *
  * `response` is passed through as `unknown` (see registry/validation.ts header): the
  * minimal ABI cannot distinguish "validated with score 0" from "not yet responded to",
@@ -18,7 +22,7 @@ import { type Result, err, isOk, ok } from "../shared/result.js";
 const MAX_LIMIT = 200;
 
 export const GetValidationsInput = z.object({
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   agentId: z.string().regex(/^\d+$/, "agentId must be a non-negative decimal integer string"),
   limit: z.number().int().optional().default(50),
   offset: z.number().int().optional().default(0),
@@ -56,7 +60,7 @@ export async function getValidations(input: unknown): Promise<Result<GetValidati
   if (!parsed.success) {
     return err(bridgeError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join("; ")));
   }
-  const { agentId: agentIdStr, chainId: chainIdInput, limit, offset } = parsed.data;
+  const { agentId: agentIdStr, chain, limit, offset } = parsed.data;
 
   if (limit < 0 || offset < 0) {
     return err(bridgeError("INVALID_INPUT", "limit and offset must be non-negative"));
@@ -72,7 +76,8 @@ export async function getValidations(input: unknown): Promise<Result<GetValidati
     );
   }
 
-  const chainId = chainIdInput ?? resolveDefaultChainId();
+  const chainId =
+    (chain !== undefined ? chainIdForSlug(chain) : undefined) ?? resolveDefaultChainId();
 
   const result = await readValidations(chainId, agentId, { limit: clampedLimit, offset });
   if (!isOk(result)) {

@@ -30,6 +30,7 @@ import {
   searchAgentsInputShape,
   searchAgentsOutputSchema,
 } from "../tools/search-agents.js";
+import { listChains, listChainsInputShape, listChainsOutputSchema } from "../tools/list-chains.js";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: Omit<BridgeError, "cause"> };
 
@@ -145,6 +146,15 @@ export const TOOL_METADATA: ToolMetadata[] = [
     inputShape: searchAgentsInputShape,
     outputSchema: searchAgentsOutputSchema,
   },
+  {
+    name: "list_chains",
+    description:
+      "Lists the chains this server is configured for. Every other tool's `chain` " +
+      "argument must be one of the `chain` slugs returned here; `isDefault` marks the " +
+      "chain used when a tool call omits `chain` (DEFAULT_CHAIN_ID env resolution).",
+    inputShape: listChainsInputShape,
+    outputSchema: listChainsOutputSchema,
+  },
 ];
 
 export function registerTools(server: McpServer): void {
@@ -197,5 +207,11 @@ export function registerTools(server: McpServer): void {
     "search_agents",
     { description: metaFor("search_agents").description, inputSchema: searchAgentsInputShape },
     async (input) => toCallToolResult(await searchAgents(input)),
+  );
+
+  server.registerTool(
+    "list_chains",
+    { description: metaFor("list_chains").description, inputSchema: listChainsInputShape },
+    () => toCallToolResult(listChains()),
   );
 }

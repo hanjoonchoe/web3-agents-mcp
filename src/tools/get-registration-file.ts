@@ -1,15 +1,18 @@
 import { z } from "zod";
 import { fetchRegistrationFile } from "../fetcher/fetch.js";
 import { getAgent } from "../registry/identity.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
 
-// R-9: this module imports only from registry/fetcher/shared — never viem directly.
+// R-9: this module imports only from registry/fetcher/shared plus the shared chain
+// schema/slug lookup (config-only, no viem) — never viem directly.
 
 const AGENT_ID_PATTERN = /^\d+$/;
 
 export const getRegistrationFileInputShape = {
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   agentId: z.string(),
   requireVerified: z.boolean().optional(),
 };
@@ -27,9 +30,12 @@ export const getRegistrationFileOutputSchema = z.object({
 });
 export type GetRegistrationFileOutput = z.infer<typeof getRegistrationFileOutputSchema>;
 
-function resolveChainId(chainId: number | undefined): number {
-  if (chainId !== undefined) {
-    return chainId;
+function resolveChainId(chain: string | undefined): number {
+  if (chain !== undefined) {
+    const id = chainIdForSlug(chain);
+    if (id !== undefined) {
+      return id;
+    }
   }
   const envValue = process.env["DEFAULT_CHAIN_ID"];
   const parsed = envValue !== undefined ? Number(envValue) : NaN;
@@ -47,7 +53,7 @@ export async function getRegistrationFile(
       ),
     );
   }
-  const chainId = resolveChainId(input.chainId);
+  const chainId = resolveChainId(input.chain);
   const requireVerified = input.requireVerified ?? false;
 
   const agentResult = await getAgent(chainId, BigInt(input.agentId));

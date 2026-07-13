@@ -1,21 +1,24 @@
 import { z } from "zod";
 import { getSummary, readFeedback } from "../registry/reputation.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
 
 /**
- * `get_reputation` MCP tool. Imports only `registry`/`shared` (never `viem` directly),
- * per WP-4 R-8.
+ * `get_reputation` MCP tool. Imports only `registry`/`shared`/the shared chain
+ * schema/slug lookup (never `viem` directly), per WP-4 R-8.
  *
  * chainId default: `DEFAULT_CHAIN_ID` env var if set and a valid integer, else `8453`
- * (Base) — see WP-4 R-7. Chain support itself is validated downstream by
- * `getSummary`/`readFeedback` (CHAIN_UNSUPPORTED), not re-validated here.
+ * (Base) — see WP-4 R-7. Chain support is enforced at the MCP schema layer (enum of
+ * configured chain slugs) and, as defense-in-depth, downstream by `getSummary`/
+ * `readFeedback` (CHAIN_UNSUPPORTED) for direct (non-MCP) callers.
  */
 
 const MAX_LIMIT = 200;
 
 export const GetReputationInput = z.object({
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   agentId: z.string().regex(/^\d+$/, "agentId must be a non-negative decimal integer string"),
   includeRaw: z.boolean().optional().default(false),
   limit: z.number().int().optional().default(50),
@@ -62,7 +65,7 @@ export async function getReputation(input: unknown): Promise<Result<GetReputatio
   if (!parsed.success) {
     return err(bridgeError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join("; ")));
   }
-  const { agentId: agentIdStr, includeRaw, chainId: chainIdInput, limit, offset } = parsed.data;
+  const { agentId: agentIdStr, includeRaw, chain, limit, offset } = parsed.data;
 
   if (limit < 0 || offset < 0) {
     return err(bridgeError("INVALID_INPUT", "limit and offset must be non-negative"));
@@ -78,7 +81,8 @@ export async function getReputation(input: unknown): Promise<Result<GetReputatio
     );
   }
 
-  const chainId = chainIdInput ?? resolveDefaultChainId();
+  const chainId =
+    (chain !== undefined ? chainIdForSlug(chain) : undefined) ?? resolveDefaultChainId();
 
   const summaryResult = await getSummary(chainId, agentId);
   if (!isOk(summaryResult)) {

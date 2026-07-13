@@ -1,19 +1,22 @@
 import { z } from "zod";
 import { fetchRegistrationFile } from "../fetcher/fetch.js";
 import { getAgent, getAgentsByOwner, type AgentRecord } from "../registry/identity.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug, slugForChainId } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
 
-// R-9: this module imports only from registry/fetcher/shared — never viem directly.
-// chainId validity (CHAIN_UNSUPPORTED) is enforced by the registry functions
-// themselves (getAgent/getAgentsByOwner -> resolveClientAndConfig), so this tool
-// never needs to touch src/chains.
+// R-9: this module imports only from registry/fetcher/shared (plus the shared
+// chain schema/slug<->chainId lookups, which are config-only and never touch
+// viem/RPC) — never viem directly. chainId validity (CHAIN_UNSUPPORTED) is enforced
+// at runtime by the registry functions themselves (getAgent/getAgentsByOwner ->
+// resolveClientAndConfig) as defense-in-depth beneath the schema-level enum check.
 
 const AGENT_ID_PATTERN = /^\d+$/;
 const OWNER_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 
 export const resolveAgentInputShape = {
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   agentId: z.string().optional(),
   ownerAddress: z.string().optional(),
 };
@@ -21,6 +24,7 @@ export const resolveAgentInputSchema = z.object(resolveAgentInputShape);
 export type ResolveAgentInput = z.infer<typeof resolveAgentInputSchema>;
 
 export const resolveAgentOutputSchema = z.object({
+  chain: z.string(),
   chainId: z.number(),
   agentId: z.string().nullable(),
   owner: z.string().nullable(),
@@ -33,9 +37,12 @@ export const resolveAgentOutputSchema = z.object({
 });
 export type ResolveAgentOutput = z.infer<typeof resolveAgentOutputSchema>;
 
-function resolveChainId(chainId: number | undefined): number {
-  if (chainId !== undefined) {
-    return chainId;
+function resolveChainId(chain: string | undefined): number {
+  if (chain !== undefined) {
+    const id = chainIdForSlug(chain);
+    if (id !== undefined) {
+      return id;
+    }
   }
   const envValue = process.env["DEFAULT_CHAIN_ID"];
   const parsed = envValue !== undefined ? Number(envValue) : NaN;
@@ -116,6 +123,7 @@ async function buildAgentData(
     : { endpoints: null, capabilities: null };
 
   return {
+    chain: slugForChainId(chainId) ?? String(chainId),
     chainId,
     agentId: record.agentId.toString(),
     owner: record.owner,
@@ -140,7 +148,7 @@ export async function resolveAgent(input: ResolveAgentInput): Promise<Result<Res
     );
   }
 
-  const chainId = resolveChainId(input.chainId);
+  const chainId = resolveChainId(input.chain);
 
   if (hasAgentId) {
     const agentIdRaw = input.agentId as string;
@@ -185,6 +193,7 @@ export async function resolveAgent(input: ResolveAgentInput): Promise<Result<Res
 
   if (agentIds.length > 1) {
     return ok({
+      chain: slugForChainId(chainId) ?? String(chainId),
       chainId,
       agentId: null,
       owner: ownerAddressRaw,

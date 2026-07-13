@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { assembleTrustReport } from "../trust/assemble.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, ok } from "../shared/result.js";
 import { getRegistrationFileOutputSchema } from "./get-registration-file.js";
@@ -21,7 +23,7 @@ const AGENT_ID_PATTERN = /^\d+$/;
 const MAX_TASK_CONTEXT_CHARS = 500;
 
 export const assessTrustInputShape = {
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   agentId: z.string(),
   taskContext: z.string().max(MAX_TASK_CONTEXT_CHARS).optional(),
 };
@@ -56,9 +58,12 @@ export const assessTrustOutputSchema = z.object({
 });
 export type AssessTrustOutput = z.infer<typeof assessTrustOutputSchema>;
 
-function resolveChainId(chainId: number | undefined): number {
-  if (chainId !== undefined) {
-    return chainId;
+function resolveChainId(chain: string | undefined): number {
+  if (chain !== undefined) {
+    const id = chainIdForSlug(chain);
+    if (id !== undefined) {
+      return id;
+    }
   }
   const envValue = process.env["DEFAULT_CHAIN_ID"];
   const parsed = envValue !== undefined ? Number(envValue) : NaN;
@@ -74,7 +79,7 @@ export async function assessTrust(input: AssessTrustInput): Promise<Result<Asses
       ),
     );
   }
-  const chainId = resolveChainId(input.chainId);
+  const chainId = resolveChainId(input.chain);
 
   const reportResult = await assembleTrustReport(chainId, BigInt(input.agentId), {
     taskContext: input.taskContext,

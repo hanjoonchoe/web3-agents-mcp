@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { IndexerBackend } from "../indexer/backend.js";
 import { NullBackend } from "../indexer/null-backend.js";
+import { chainSchema } from "../chains/schema.js";
+import { chainIdForSlug, slugForChainId } from "../chains/config.js";
 import { bridgeError } from "../shared/errors.js";
 import { type Result, err, isOk, ok } from "../shared/result.js";
 
@@ -21,7 +23,7 @@ const MAX_LIMIT = 100;
 const VALID_BACKEND_NAMES = ["null"] as const;
 
 export const searchAgentsInputShape = {
-  chainId: z.number().int().optional(),
+  chain: chainSchema,
   query: z.string().min(MIN_QUERY_LENGTH, `query must be at least ${MIN_QUERY_LENGTH} characters`),
   limit: z.number().int().positive().optional().default(DEFAULT_LIMIT),
 };
@@ -30,6 +32,7 @@ export type SearchAgentsInput = z.infer<typeof searchAgentsInputSchema>;
 
 const searchHitOutputSchema = z.object({
   agentId: z.string(),
+  chain: z.string(),
   chainId: z.number(),
   name: z.string().nullable(),
   matchedOn: z.enum(["name", "capability", "description"]),
@@ -44,9 +47,12 @@ export const searchAgentsOutputSchema = z.object({
 });
 export type SearchAgentsOutput = z.infer<typeof searchAgentsOutputSchema>;
 
-function resolveChainId(chainId: number | undefined): number {
-  if (chainId !== undefined) {
-    return chainId;
+function resolveChainId(chain: string | undefined): number {
+  if (chain !== undefined) {
+    const id = chainIdForSlug(chain);
+    if (id !== undefined) {
+      return id;
+    }
   }
   const envValue = process.env["DEFAULT_CHAIN_ID"];
   const parsed = envValue !== undefined ? Number(envValue) : NaN;
@@ -73,8 +79,8 @@ export async function searchAgents(input: unknown): Promise<Result<SearchAgentsO
   if (!parsed.success) {
     return err(bridgeError("INVALID_INPUT", parsed.error.issues.map((i) => i.message).join("; ")));
   }
-  const { chainId: chainIdInput, query, limit } = parsed.data;
-  const chainId = resolveChainId(chainIdInput);
+  const { chain, query, limit } = parsed.data;
+  const chainId = resolveChainId(chain);
   const clampedLimit = Math.min(limit, MAX_LIMIT);
 
   const backendResult = resolveBackend();
@@ -98,6 +104,7 @@ export async function searchAgents(input: unknown): Promise<Result<SearchAgentsO
     backend: backend.name,
     results: searchResult.value.map((hit) => ({
       agentId: hit.agentId.toString(),
+      chain: slugForChainId(hit.chainId) ?? String(hit.chainId),
       chainId: hit.chainId,
       name: hit.name,
       matchedOn: hit.matchedOn,

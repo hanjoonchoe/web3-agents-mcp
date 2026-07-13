@@ -33,6 +33,7 @@ const ERROR_CODES: Record<string, ErrorCode[]> = {
   get_validations: ["INVALID_INPUT", "CHAIN_UNSUPPORTED", "AGENT_NOT_FOUND", "RPC_ERROR"],
   assess_trust: ["INVALID_INPUT", "CHAIN_UNSUPPORTED", "AGENT_NOT_FOUND", "RPC_ERROR"],
   search_agents: ["INVALID_INPUT", "INDEX_UNAVAILABLE"],
+  list_chains: [],
 };
 
 type FieldRow = { field: string; type: string; required: boolean; default: string };
