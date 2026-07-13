@@ -11,12 +11,32 @@ import {
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: Omit<BridgeError, "cause"> };
 
-function toEnvelope<T>(result: Result<T>): Envelope<T> {
+// Upstream libraries (viem especially) can produce multi-KB, multi-line error
+// messages — including entire embedded HTML error pages from failing RPCs. MCP tool
+// consumers are LLMs, so the serialized envelope keeps only the first line, capped
+// at MAX_ERROR_MESSAGE_CHARS. The full original message remains available internally
+// on the BridgeError (and its `cause`), which is never serialized into the envelope.
+const MAX_ERROR_MESSAGE_CHARS = 300;
+const TRUNCATION_MARKER = "… [truncated]";
+
+function sanitizeErrorMessage(message: string): string {
+  const newlineIndex = message.search(/\r|\n/);
+  const firstLine = newlineIndex === -1 ? message : message.slice(0, newlineIndex);
+  // The marker counts toward the cap so the serialized message never exceeds it.
+  const capped =
+    firstLine.length > MAX_ERROR_MESSAGE_CHARS
+      ? firstLine.slice(0, MAX_ERROR_MESSAGE_CHARS - TRUNCATION_MARKER.length)
+      : firstLine;
+  return capped.length < message.length ? capped + TRUNCATION_MARKER : capped;
+}
+
+/** Exported for tests only; not part of the tool surface. */
+export function toEnvelope<T>(result: Result<T>): Envelope<T> {
   if (result.ok) {
     return { ok: true, data: result.value };
   }
   const { code, message, retryable } = result.error;
-  return { ok: false, error: { code, message, retryable } };
+  return { ok: false, error: { code, message: sanitizeErrorMessage(message), retryable } };
 }
 
 function toCallToolResult<T>(result: Result<T>): CallToolResult {
