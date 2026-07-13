@@ -8,6 +8,8 @@ import {
   getRegistrationFile,
   getRegistrationFileInputShape,
 } from "../tools/get-registration-file.js";
+import { GetReputationInput, getReputation } from "../tools/get-reputation.js";
+import { GetValidationsInput, getValidations } from "../tools/get-validations.js";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: Omit<BridgeError, "cause"> };
 
@@ -45,6 +47,10 @@ function toCallToolResult<T>(result: Result<T>): CallToolResult {
   };
 }
 
+async function toCallToolResultAsync<T>(result: Promise<Result<T>>): Promise<CallToolResult> {
+  return toCallToolResult(await result);
+}
+
 export function registerTools(server: McpServer): void {
   server.registerTool(
     "ping",
@@ -76,5 +82,29 @@ export function registerTools(server: McpServer): void {
       inputSchema: getRegistrationFileInputShape,
     },
     async (input) => toCallToolResult(await getRegistrationFile(input)),
+  );
+
+  server.registerTool(
+    "get_reputation",
+    {
+      description:
+        "Reads an agent's Reputation Registry feedback summary (and optionally the raw " +
+        "feedback entries). Always returns honesty caveats — feedback is self-reported " +
+        "by clients and is a weak signal, especially for low feedback counts.",
+      inputSchema: GetReputationInput.shape,
+    },
+    (args) => toCallToolResultAsync(getReputation(args)),
+  );
+
+  server.registerTool(
+    "get_validations",
+    {
+      description:
+        "Reads an agent's Validation Registry entries (validator, best-effort method " +
+        "classification, response, timestamp). An agent with zero validations is a " +
+        "normal, successful result — not an error.",
+      inputSchema: GetValidationsInput.shape,
+    },
+    (args) => toCallToolResultAsync(getValidations(args)),
   );
 }

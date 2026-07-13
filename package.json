@@ -11,7 +11,7 @@
     "dev": "tsc -p tsconfig.json && node dist/server/index.js",
     "build": "tsc -p tsconfig.json && mkdir -p dist/registry/abi && cp src/registry/abi/*.json dist/registry/abi/",
     "test": "vitest run --exclude \"**/*.fork.test.ts\"",
-    "test:fork": "vitest run test/registry/identity.fork.test.ts",
+    "test:fork": "vitest run test/registry/identity.fork.test.ts test/registry/reputation.fork.test.ts",
     "lint": "eslint . && prettier --check \"**/*.{ts,js,json,md,yml}\" --ignore-path .gitignore",
     "typecheck": "tsc --noEmit"
   },
