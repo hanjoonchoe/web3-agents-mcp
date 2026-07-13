@@ -10,6 +10,7 @@ import {
 } from "../tools/get-registration-file.js";
 import { GetReputationInput, getReputation } from "../tools/get-reputation.js";
 import { GetValidationsInput, getValidations } from "../tools/get-validations.js";
+import { assessTrust, assessTrustInputShape } from "../tools/assess-trust.js";
 
 type Envelope<T> = { ok: true; data: T } | { ok: false; error: Omit<BridgeError, "cause"> };
 
@@ -106,5 +107,19 @@ export function registerTools(server: McpServer): void {
       inputSchema: GetValidationsInput.shape,
     },
     (args) => toCallToolResultAsync(getValidations(args)),
+  );
+
+  server.registerTool(
+    "assess_trust",
+    {
+      description:
+        "Composite trust assessment for an ERC-8004 agent: runs identity, registration " +
+        "file, reputation, and validation lookups in parallel with graceful partial " +
+        "failure, then produces a deterministic 0-100 NaiveScorer score, a confidence " +
+        "level (capped at 'medium' in v0), documented caveats, and a short natural-" +
+        "language summary. `taskContext` only shapes the summary text.",
+      inputSchema: assessTrustInputShape,
+    },
+    async (input) => toCallToolResult(await assessTrust(input)),
   );
 }

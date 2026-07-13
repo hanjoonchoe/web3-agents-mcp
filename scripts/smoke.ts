@@ -37,6 +37,22 @@ async function main(): Promise<void> {
   const invalidResponse = await client.callTool({ name: "resolve_agent", arguments: {} });
   process.stdout.write(JSON.stringify(invalidResponse, null, 2) + "\n");
 
+  // Live WP-5 smoke: assess_trust on Base agent #0 (real: verified data: URI file,
+  // 57 feedback entries, 0 validations) and a nonexistent agentId (AGENT_NOT_FOUND).
+  process.stdout.write("\n--- assess_trust { chainId: 8453, agentId: '0' } ---\n");
+  const trustResponse = await client.callTool({
+    name: "assess_trust",
+    arguments: { chainId: 8453, agentId: "0", taskContext: "paying an invoice" },
+  });
+  process.stdout.write(JSON.stringify(trustResponse, null, 2) + "\n");
+
+  process.stdout.write("\n--- assess_trust nonexistent agentId ---\n");
+  const trustNotFoundResponse = await client.callTool({
+    name: "assess_trust",
+    arguments: { chainId: 8453, agentId: "999999999" },
+  });
+  process.stdout.write(JSON.stringify(trustNotFoundResponse, null, 2) + "\n");
+
   await client.close();
 }
 
