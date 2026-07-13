@@ -58,7 +58,8 @@ function extractEnvVarsFromSrc(): Set<string> {
 /** Extracts the first-column env var name from each row of the README's Configuration table. */
 function extractEnvVarsFromReadme(): Set<string> {
   const content = readFileSync(readmePath, "utf8");
-  const configSectionMatch = /## Configuration\n([\s\S]*?)\n## /.exec(content);
+  // Tolerate an optional emoji/word prefix in the heading (e.g. "## ⚙️ Configuration").
+  const configSectionMatch = /## (?:[^\n]* )?Configuration\n([\s\S]*?)\n## /.exec(content);
   if (!configSectionMatch) {
     throw new Error("README.md has no ## Configuration section");
   }
