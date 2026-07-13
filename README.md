@@ -1,53 +1,61 @@
+<div align="center">
+
 # web3-agents-mcp
 
-An MCP (Model Context Protocol) server for on-chain AI agents: it discovers, inspects, and
-verifies blockchain-registered agents over stdio, for any MCP-speaking client. Every tool takes
-a `chainId` argument, so a single server instance works across every supported chain.
+### Discover, inspect, and verify on-chain AI agents — from any MCP client.
 
-Concretely, it bridges [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) agent identity,
-reputation, and validation registries — plus each agent's off-chain registration file — into
-MCP tool calls. ERC-8004, in one line: it is an Ethereum standard for on-chain agent identity,
-reputation, and validation registries, so agents built by different teams on different stacks
-can discover and check facts about each other without a central directory.
+**English** | [日本語](README.ja.md) | [中文](README.zh.md) | [한국어](README.ko.md)
 
-## Read-only by design
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](tsconfig.json)
+[![MCP](https://img.shields.io/badge/protocol-MCP-8A2BE2)](https://modelcontextprotocol.io)
+[![ERC-8004](https://img.shields.io/badge/standard-ERC--8004-627EEA)](https://eips.ethereum.org/EIPS/eip-8004)
+[![Chains](https://img.shields.io/badge/chains-7-informational)](#-supported-chains)
+[![Tests](https://img.shields.io/badge/tests-165%20passing-success)](test)
 
-This server never holds a private key, never signs a transaction, and exposes no write
-operation of any kind — every tool is a read against public on-chain state or public off-chain
-metadata. This is a deliberate boundary, not a missing feature: an MCP tool surface reachable by
-an LLM agent must never have an injection path into on-chain actions (spending funds, changing
-registrations, submitting feedback). If a task needs a write, it needs a different, explicitly
-authorized tool — not this one.
+An MCP (Model Context Protocol) server that bridges
+[ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) agent identity, reputation, and
+validation registries into tool calls any AI agent can make. One server, every supported
+chain — each tool takes a `chain` argument.
 
-## No scoring by design
+</div>
 
-`assess_trust` — the composite tool — returns `{identity, registrationFile, reputation,
-validations, caveats, summary, missing}`. There is no numeric score, no confidence level, no
-star rating anywhere in this server's output. It hands back verified on-chain facts plus
-mandatory honesty caveats about those facts (see [Verification semantics](#verification-semantics)
-and [Feedback honesty](#feedback-honesty) below); weighing those facts into an actual trust
-decision — how much to rely on this agent, for this task, right now — is the consuming agent's
-job, not this server's. A server that quietly compresses "57 feedback entries, all from one
-address, no independent validation" into a single number is making a judgment call it has no
-business making on the consumer's behalf.
+---
 
-## Quickstart
+## 📋 Table of contents
+
+- [Why](#-why)
+- [Quickstart](#-quickstart)
+- [Example prompts](#-example-prompts)
+- [Tools](#-tools)
+- [Design principles](#-design-principles)
+- [Supported chains](#-supported-chains)
+- [Configuration](#-configuration)
+- [Verification semantics](#-verification-semantics)
+- [Feedback honesty](#-feedback-honesty)
+- [Development](#-development)
+- [Roadmap](#-roadmap)
+- [License](#-license)
+
+## 🤔 Why
+
+AI agents are starting to hire, pay, and delegate to other agents. ERC-8004 ("Trustless
+Agents") gives them an on-chain trust layer — identity, reputation, and validation
+registries on 20+ EVM chains — but until now an LLM agent had no way to read it from
+inside its tool loop.
+
+**web3-agents-mcp closes that gap.** Before your agent trusts a counterparty, it can ask:
+Who owns this agent? Is its registration file authentic? What feedback has it received —
+and from whom? Has anyone independently validated its work?
+
+## 🚀 Quickstart
 
 ```sh
 npx web3-agents-mcp
 ```
 
-Pre-publish (before the npm release ships), run from a checkout instead:
-
-```sh
-pnpm install
-pnpm build
-node dist/server/index.js
-```
-
-The server speaks MCP over stdio; it does not open a network port.
-
-## Client config
+> Pre-publish: run from a checkout instead — `pnpm install && pnpm build && node dist/server/index.js`
 
 **Claude Code:**
 
@@ -68,25 +76,59 @@ claude mcp add web3-agents -- npx web3-agents-mcp
 }
 ```
 
-**Generic stdio client:** spawn `npx web3-agents-mcp` (or `node dist/server/index.js` from a
-checkout) as a child process and speak MCP over its stdin/stdout.
+**Any other MCP client:** spawn `npx web3-agents-mcp` as a child process and speak MCP
+over stdio. The server never opens a network port.
 
-## Tool reference
+## 💬 Example prompts
 
-Eight tools: `ping`, `resolve_agent`, `get_registration_file`, `get_reputation`,
-`get_validations`, `assess_trust`, `search_agents`, `list_chains`. Full input/output schemas,
-defaults, and possible error codes for each are generated from source into
-[`docs/tools.md`](docs/tools.md) — regenerate it with `pnpm docs:gen` after changing a tool's
-zod schema or description. A real captured call-by-call transcript is in
+Once connected, just ask your agent naturally:
+
+> _"Which chains does the web3-agents server support?"_
+>
+> _"Look up ERC-8004 agent #1 on Base — who owns it and what does it do?"_
+>
+> _"Is agent #42's registration file cryptographically verified?"_
+>
+> _"Show me the raw feedback entries for agent #1 on Base, including who submitted them."_
+>
+> _"Should I trust agent #0 on Polygon for a code-review task? Pull the on-chain facts."_
+
+## 🧰 Tools
+
+| Tool                    | What it returns                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `list_chains`           | Configured chains: slug, chainId, registry addresses, default flag                                                       |
+| `resolve_agent`         | Identity record by agentId or owner: owner, tokenUri, endpoints, capabilities                                            |
+| `get_registration_file` | The agent's **full registration file**, fetched and hash-verified (`data:`/`ipfs://`/`https://`)                         |
+| `get_reputation`        | Feedback summary + optional **raw per-client entries** (address, score, tag), paginated                                  |
+| `get_validations`       | Independent validation entries: validator, method (TEE/ZK/re-execution), result                                          |
+| `assess_trust`          | **Composite factual report**: identity + file verification + reputation + validations + caveats + plain-language summary |
+| `search_agents`         | Capability search (indexer backend — MVP ships a stub)                                                                   |
+| `ping`                  | Liveness + version                                                                                                       |
+
+Full input/output schemas, defaults, and error codes are generated from source into
+[`docs/tools.md`](docs/tools.md) (`pnpm docs:gen`). A real captured transcript is in
 [`docs/demo.md`](docs/demo.md).
 
-Every tool that reads on-chain state takes an optional `chain` argument — the chain's canonical
-name (e.g. `"base"`, `"ethereum"`), not a numeric id — defaulting to `DEFAULT_CHAIN_ID` if
-omitted. `chain` is a fixed enum of whatever this server is currently configured for; call
-`list_chains` to discover the live list (and each chain's numeric `chainId`) rather than
-hardcoding names.
+## 🛡️ Design principles
 
-## Supported chains
+> ### 🔒 Read-only by design
+>
+> No private keys, no signing, no write operations — every tool reads public state. An MCP
+> tool surface reachable by an LLM must never have an injection path into on-chain actions
+> (spending funds, changing registrations, submitting feedback). If a task needs a write,
+> it needs a different, explicitly authorized tool — not this one.
+
+> ### ⚖️ No scoring by design
+>
+> There is no numeric score, confidence level, or star rating anywhere in this server's
+> output. It hands back **verified on-chain facts plus mandatory honesty caveats**;
+> weighing them into a trust decision is the consuming agent's job. A server that quietly
+> compresses "57 feedback entries, all from one address, no independent validation" into a
+> single number is making a judgment call it has no business making on the consumer's
+> behalf.
+
+## ⛓️ Supported chains
 
 | Chain            | `chain` value | chainId | Supported |
 | ---------------- | ------------- | ------- | --------- |
@@ -98,29 +140,28 @@ hardcoding names.
 | BNB Smart Chain  | `bnb`         | 56      | ✅        |
 | Gnosis Chain     | `gnosis`      | 100     | ✅        |
 
-Registry addresses are identical on every chain above (deployed via the same CREATE2 vanity
-salt); more chains can be added in `src/chains/config.ts`. Agents can discover this list live
-(and check which chain is the current default) via the `list_chains` tool rather than assuming
-it is fixed to the table above.
+Registry addresses are identical on every chain (CREATE2). Adding a chain is one entry in
+`src/chains/config.ts`; agents discover the live list via the `list_chains` tool, and the
+`chain` enum in every tool's schema updates automatically.
 
-## Configuration
+## ⚙️ Configuration
 
-All configuration is via environment variables; every tool call still takes an explicit `chain`
-argument, so these are defaults, not global switches.
+All configuration is via environment variables; every tool call still takes an explicit
+`chain` argument, so these are defaults, not global switches.
 
 | Variable            | Default                                                                    | Purpose                                                                                                                                                           |
 | ------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_CHAIN_ID`  | `8453` (Base)                                                              | Numeric chain id used by any tool call that omits `chain`.                                                                                                        |
+| `DEFAULT_CHAIN_ID`  | `8453` (Base)                                                              | Chain id used by any tool call that omits `chain`.                                                                                                                |
 | `RPC_URL_<chainId>` | none (built-in public RPC list per chain)                                  | Overrides/prepends the RPC endpoint used for that specific chain id, e.g. `RPC_URL_8453`.                                                                         |
 | `CACHE_DIR`         | `~/.cache/web3-agents-mcp`                                                 | Directory for the local sqlite cache of fetched registration files.                                                                                               |
 | `IPFS_GATEWAYS`     | `https://ipfs.io,https://cloudflare-ipfs.com,https://gateway.pinata.cloud` | Comma-separated list of IPFS HTTP gateways to try, in order, for `ipfs://` registration files.                                                                    |
 | `LOG_LEVEL`         | `info`                                                                     | One of `error`, `warn`, `info`, `debug`; controls stderr log verbosity.                                                                                           |
 | `INDEX_BACKEND`     | `null`                                                                     | Selects the `search_agents` backend. Only `null` (the MVP stub, always `INDEX_UNAVAILABLE`) is implemented; a real local-index backend ships in a future release. |
 
-## Verification semantics
+## 🔍 Verification semantics
 
 A registration file's `verified` field means different things depending on how the agent's
-`tokenUri` points at it (see the v1 ERC-8004 contracts this server targets):
+`tokenUri` points at it (per the v1 ERC-8004 contracts this server targets):
 
 | `tokenUri` scheme | `verified` value  | Why                                                                                                                                                                                                                                            |
 | ----------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -128,20 +169,20 @@ A registration file's `verified` field means different things depending on how t
 | `ipfs://`         | `true` or `false` | The file is fetched from an IPFS gateway and its content hash is checked against the CID in the URI — an explicit `false` means that check failed.                                                                                             |
 | `https://`        | `null`            | Unverifiable: v1 has no on-chain hash commitment for `https://`-hosted files, so this server cannot confirm the fetched bytes are what the agent actually committed to. `null` is a distinct, deliberate value — never conflated with `false`. |
 
-## Feedback honesty
+## 🧂 Feedback honesty
 
 `get_reputation` and `assess_trust` always attach caveats to feedback-derived data, because
 on-chain feedback has real, structural weaknesses that no aggregation can paper over:
 
 - There is no canonical score scale enforced by the registry; averages are clamped to 0-100
   and may overstate quality relative to whatever scale a given client actually used.
-- Feedback is submitted by arbitrary addresses and is Sybil-able — nothing stops one party from
-  submitting many entries under different addresses.
+- Feedback is submitted by arbitrary addresses and is Sybil-able — nothing stops one party
+  from submitting many entries under different addresses.
 
-These caveats are deterministic and unremovable: they are always present in the output, not an
-opt-in flag.
+These caveats are deterministic and unremovable: they are always present in the output, not
+an opt-in flag.
 
-## Development
+## 🛠️ Development
 
 ```sh
 pnpm install
@@ -165,6 +206,16 @@ Project layout:
 - `src/server` — MCP server wiring, tool registration, and the stdio entry point.
 - `src/shared` — the `Result`/`BridgeError` types and the stderr logger used everywhere.
 
-## License
+Contributor/agent guidelines live in [AGENTS.md](AGENTS.md).
+
+## 🗺️ Roadmap
+
+- [ ] **Local search indexer** — real `search_agents` backend (SQLite log backfill, resumable)
+- [ ] **Endpoint liveness checks** — flag agents whose advertised endpoints are dead
+- [ ] **Streamable HTTP transport** — hosted/shared deployments
+- [ ] **npm release** — `npx web3-agents-mcp` without a checkout
+- [ ] More chains (one config entry each)
+
+## 📄 License
 
 MIT — see [LICENSE](LICENSE).
